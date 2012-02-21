@@ -1,0 +1,326 @@
+<html>
+	<head>
+		<title>WebCrawler</title>
+		<meta http-equiv="Content-type" content="text/html; charset=utf-8">
+		<link rel="stylesheet" href="style.css" type="text/css" media="screen" />
+		<script src="jquery.js" type="text/javascript"></script>
+		<script charset="utf-8">
+			var host = "localhost";
+			var handleArray = [];
+			function searchFor(searchText) {
+				$('.button-submit').after('<img id="loading" src="loading.gif" />');
+				$.ajax({
+					url: 'http://'+host+':3000/search?query='+searchText,
+					type: 'GET',
+					dataType: 'html',
+					timeout: 100000,
+					error: function(data) {
+						alert("SearchFor ERROR");
+					},
+					success: function(data) {
+						$('#loading').remove();
+						var cntReceived = 0;
+						var result = eval("("+data+")");
+						if(result.searchId != null) {
+							$('#second-block-tabs').children().each(function() {
+								$(this).attr('class', 'tab-label unselected');
+							});
+							$('#second-block-tabs').append('<span id="label_'+result.searchId+'" class="tab-label selected"><img id="loading" src="loading.gif" width="10" height="10" /> <span onclick="selectTab('+result.searchId+')">'+searchText+'</span> &nbsp;<span class="x" onclick="closeTab('+result.searchId+')">X</span></span>');
+							$('.results-block').children().each(function() {
+								$(this).css({display: 'none'});
+							});
+							$('.results-block').append('<div id="tab_'+result.searchId+'" class="tab-result"></div>');
+							$('#tab_'+result.searchId).append('<div class="tab-item-result"><img id="loading" src="loading.gif" /></div>');
+							var handleInterval = setInterval(function() {
+								$.ajax({
+									url: 'http://'+host+':3000/search_info?search_id='+result.searchId+'&cnt_received='+cntReceived,
+									type: 'GET',
+									dataType: 'html',
+									timeout: 100000,
+									error: function(data) {
+										alert("error");
+										alert(data);
+										clearInterval(handleInterval);
+									},
+									success: function(data) {
+										var result2 = eval("("+data+")");
+										if(result2.length > 0 && result2[result2.length-1] == 'null') {
+											result2.splice(result2.length-1, 1);
+											clearInterval(handleInterval);
+										}
+										cntReceived += result2.length;
+
+										$('#tab_'+result.searchId+' .tab-item-result:last-child').remove();
+										for (var i=0; i<result2.length; i++) {
+											var words = [];
+											for(var j=0; j<result2[i].found.length; j++) {
+												var item = result2[i].found[j];
+												words.push(item.word + "(pos:"+item.pos+")");
+											}
+											$('#tab_'+searchId).append('<div class="tab-item-result"><a href="'+result2[i].link+'">'+result2[i].link+'</a><br/>words found: '+words.join(", ")+'</div>');
+										};
+
+										$('#tab_'+searchId).append('<div class="tab-item-result"><img id="loading" src="loading.gif" /></div>');
+									}
+								});
+							}, 3000);
+						} else {
+							alert("Unexpected behavior");
+						}
+			    	}
+				});
+			}
+
+			function selectTab(idx) {
+				$('.tabs-block').children().each(function() {
+					$(this).attr('class', 'tab-label unselected');
+				});
+				$('#label_'+idx).attr('class', 'tab-label selected');
+				$('.results-block').children().each(function() {
+					$(this).css({display: 'none'});
+				});
+				$('#tab_'+idx).css({display: ''});
+			}
+
+			function closeTab(idx) {
+				$.ajax({
+					url: 'http://'+host+':3000?stopId='+idx,
+					type: 'GET',
+					dataType: 'html',
+					timeout: 1000,
+					error: function() {
+					},
+					success: function(data) {
+
+					}
+				});
+				$('.tabs-block').children().each(function() {
+					$(this).attr('class', 'tab-label unselected');
+				});
+				$('#label_'+idx).remove();
+				$('.results-block').children().each(function() {
+					$(this).css({display: 'none'});
+				});
+				$('#tab_'+idx).remove();
+			}
+			
+			function getSearchesList() {
+				$.ajax({
+					url: 'http://'+host+':3000/search_info',
+					type: 'GET',
+					dataType: 'html',
+					timeout: 1000,
+					error: function(data) {
+						alert("Error on search_info");
+					},
+					success: function(data) {
+						data = eval("("+data+")");
+						for(var i=0; i<data.length; i++) {
+							var searchId = data[i];
+							var cntReceived = 0;
+							
+							$('#second-block-tabs').children().each(function() {
+								$(this).attr('class', 'tab-label unselected');
+							});
+							$('#second-block-tabs').append('<span id="label_'+searchId+'" class="tab-label selected"><img id="loading" src="loading.gif" width="10" height="10" /> <span onclick="selectTab('+searchId+')">DB Search</span> &nbsp;<span class="x" onclick="closeTab('+searchId+')">X</span></span>');
+							$('.results-block').children().each(function() {
+								$(this).css({display: 'none'});
+							});
+							$('.results-block').append('<div id="tab_'+searchId+'" class="tab-result"></div>');
+							$('#tab_'+searchId).append('<div class="tab-item-result"><img id="loading" src="loading.gif" /></div>');
+							//var handleInterval = setInterval(function() {
+								$.ajax({
+									url: 'http://'+host+':3000/search_info?search_id='+searchId+'&cnt_received='+cntReceived,
+									type: 'GET',
+									dataType: 'html',
+									timeout: 100000,
+									error: function(data) {
+										alert("error");
+										alert(data);
+										//clearInterval(handleInterval);
+									},
+									success: function(data) {
+										data = eval("("+data+")");
+										if(data.length > 0 && data[data.length-1] == 'null') {
+											data.splice(data.length-1, 1);
+											//clearInterval(handleInterval);
+										}
+										cntReceived += data.length;
+
+										
+										for (var i=0; i<data.length; i++) {
+											var words = [];
+											for(var j=0; j<data[i].found.length; j++) {
+												var item = data[i].found[j];
+												words.push(item.word + "(pos:"+item.pos+")");
+											}
+											$('#tab_'+searchId).append('<div class="tab-item-result"><a href="'+data[i].link+'">'+data[i].link+'</a><br/>words found: '+words.join(", ")+'</div>');
+										};
+
+										$('#tab_'+searchId).append('<div class="tab-item-result"><img id="loading" src="loading.gif" /></div>');
+									}
+								});
+							//}, 3000);
+						}
+					}
+				});
+			}
+			
+			function getCategories() {
+				$.ajax({
+					url: 'http://'+host+':3000/get_categories',
+					type: 'GET',
+					dataType: 'html',
+					timeout: 1000,
+					error: function(data) {
+						alert("Error on getCategories");
+					},
+					success: function(data) {
+						data = eval("(" + data + ")");
+						var check = document.categories.ordem;
+						for(var i=0; i<check.length; i++) {
+							if(data.indexOf(parseInt(check[i].value)) != -1) check[i].checked = true;
+						}
+					}
+				});
+			}
+			
+			function setCategories() {
+				var check = document.categories.ordem;
+				cat = [];
+				for(var i=0; i<check.length; i++) {
+					if(check[i].checked== true) cat.push(check[i].value);
+				}
+				$.ajax({
+					url: 'http://'+host+':3000/set_categories?cat=' + cat.join(","),
+					type: 'GET',
+					dataType: 'html',
+					timeout: 1000,
+					error: function(data) {
+						alert("Error on setCategories");
+					},
+					success: function(data) {
+						getCategories();
+						alert("Categorias alteradoas com sucesso.");
+					}
+				});
+			}
+			
+			function isStoped() {
+				$.ajax({
+					url: 'http://'+host+':3000/is_stoped',
+					type: 'GET',
+					dataType: 'html',
+					timeout: 1000,
+					error: function(data) {
+						alert("Error on isStoped Function");
+					},
+					success: function(data) {
+						if(data == "yes") document.getElementById("startStopButton").value = "Arrancar WebCrawler";
+						else document.getElementById("startStopButton").value = "Parar WebCrawler";
+					}
+				});
+			}
+			
+			function startStopWebCrawler() {
+				$.ajax({
+					url: 'http://'+host+':3000/is_stoped',
+					type: 'GET',
+					dataType: 'html',
+					timeout: 1000,
+					error: function(data) {
+						alert("Error on startStopWebCrawler");
+					},
+					success: function(data) {
+						if(data == "yes") {
+							$.ajax({
+								url: 'http://'+host+':3000/start',
+								type: 'GET',
+								dataType: 'html',
+								timeout: 1000,
+								error: function(data) {
+									alert("Erro ao tentar arrancar o WebCrawler");
+								},
+								success: function(data) {
+									document.getElementById("startStopButton").value = "Parar WebCrawler";
+								}
+							});
+						} else {
+							$.ajax({
+								url: 'http://'+host+':3000/stop',
+								type: 'GET',
+								dataType: 'html',
+								timeout: 1000,
+								error: function(data) {
+									alert("Erro ao tentar parar o WebCrawler");
+								},
+								success: function(data) {
+									document.getElementById("startStopButton").value = "Arrancar WebCrawler";
+								}
+							});
+						}
+						
+					}
+				});
+			}
+		</script>
+	</head>
+	<body onload="
+		isStoped();
+		getCategories();
+		getSearchesList();">
+		<div id="first-block-tabs" class="tabs-block">
+			<span id="conf" class="tab-label selected" onclick="
+				$('.admin-block').css({display: ''}); 
+				$('.search-block').css({display: 'none'}); 
+				$('#conf').attr('class', 'tab-label selected');
+				$('#pesq').attr('class', 'tab-label');">Configurações</span>
+			<span id="pesq" class="tab-label" 
+				onclick="
+				$('.admin-block').css({display: 'none'}); 
+				$('.search-block').css({display: ''});
+				$('#conf').attr('class', 'tab-label');
+				$('#pesq').attr('class', 'tab-label selected');">Pesquisa</span>
+		</div>
+		<div class="admin-block">
+			<div class="container">
+				<input id="startStopButton" type="button" name="startStopButton" class="button-submit" value="Arrancar WebCrawler" onclick="startStopWebCrawler();" />
+			</div>
+			<div class="container">
+				<form name="categories" style="margin:0px">
+				<b>Categorias:</b>
+				<ul>
+					<li><input type="checkbox" name="ordem" id="ordem" value="1" /> 1 - Económicos/Generalistas</li>
+					<li>Especializadas:
+						<ul class="sub-categorias">
+							<li><input type="checkbox" name="ordem" id="ordem" value="2" /> 2 - TMT/Turismo/Mkt</li>
+							<li><input type="checkbox" name="ordem" id="ordem" value="3" /> 3 - Imobiliário/Transportes/Jogos/TI</li>
+							<li><input type="checkbox" name="ordem" id="ordem" value="4" /> 4 - Saúde e bem-estar/Ambiente/Gastronomia/Arte Cultura e Lazer</li>
+							<li><input type="checkbox" name="ordem" id="ordem" value="5" /> 5 - Auto/Desporto/Moda e Decoração</li>
+						</ul>
+					</li>
+					<li><input type="checkbox" name="ordem" id="ordem" value="6" /> 6 – Regionais</li>
+					<li><input type="checkbox" name="ordem" id="ordem" value="7" /> 7 – Blogs</li>
+					<li><input type="checkbox" name="ordem" id="ordem" value="8" /> 8 - Outros</li>
+					<li><input type="checkbox" name="ordem" id="ordem" value="9" /> 9 – Internacionais</li>
+				</ul>
+				<input id="setcategories" name="setcategories" class="button-submit" value="Alterar" onclick="setCategories()" />
+				</form>
+			</div>
+		</div>
+		<div class="search-block" style="display:none">
+			<input id="searchbox" class="input-box" type="text" name="searchbox" value="" />
+			<div><input class="button-submit" type="button" name="searchbutton" value="Pesquisar" onclick="searchFor(document.getElementById('searchbox').value)" /></div>
+		</div>
+		<div id="second-block-tabs" class="tabs-block">
+
+		</div>
+		<div class="results-block">
+			<div class="tab-result hidden"></div>
+			<div class="tab-result">
+
+			</div>
+			<div class="tab-result hidden"></div>
+		</div>
+	</body>
+</html>
