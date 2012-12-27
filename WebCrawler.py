@@ -1,6 +1,10 @@
 # WebCrawler
 # Autor: David Duarte
 
+# Build 54 - fazer login para sites com area privada
+# Build 53 - ajuste no parser para que nao apanhe menus de noticias quanda os menis sao compotos para links
+#          - adicinoar a opcao ver paginas de areas privadas 
+# Build 42 - implementado a capacidade para apanhar redirecionamentos
 # Build 30 - implemetado o sistema de cache para facilitar a memoria
 # Build 26 - Novos links sao com do mesmo dominio
 # Build 12 - Reformulacao na forma como se procura info nos site
@@ -10,6 +14,7 @@
 # Build 6 - Ainda nao foi testado. Esta em reformulacao
 
 import re
+import urllib
 import urllib2
 import Log
 import Http
@@ -73,6 +78,7 @@ class Word:
 		self.aux = self.designacao.split('\\')[0]
 		self.patern = re.compile('([^\w\-_]' + self.designacao + '[^\w\-_\+]|[^\w\-_\+]' + self.designacao + '[^\w\-_])', re.IGNORECASE | re.DOTALL)
 		self.paternAux = re.compile(self.aux, re.IGNORECASE | re.DOTALL)
+		#self.arr = designacao.split('\s+')
 
 class WebCrawler:
 	def __init__(self, host_, port_, logPath_, categories_, maxMenMB, maxTimeUrlUpdateMin):
@@ -90,7 +96,8 @@ class WebCrawler:
 		self.regPatern = [
 			[re.compile(r'<\s*script[^<]*>.*?<\s*/script\s*>', re.IGNORECASE | re.DOTALL), ''],
 			[re.compile(r'<\s*(br|strong|i|b)\*>', re.IGNORECASE), ''],
-			[re.compile(r'<\s*a[^<]*?/?>', re.IGNORECASE), ''],
+#			[re.compile(r'<\s*a[^<]*?/?>', re.IGNORECASE), ''],
+			[re.compile(r'<\s*a[^<]*>.*?<\s*/a\s*>', re.IGNORECASE | re.DOTALL), ''],
 			[re.compile(r'<[^<]*?/?>', re.IGNORECASE), '++']
 		]
 
@@ -98,8 +105,8 @@ class WebCrawler:
 		self.maxTimeUrlUpdate = maxTimeUrlUpdateMin * 60 # Conta tempo em segundos
 		self.ignoreList = ['css', 'gif', 'jpg', 'png', 'pdf', 'mov', 'swf'];
 
-		# em testes
 		self.listWords = {}
+		#self.regTokenize.compile(r'\w+')
 
 	# Not in use
 	def downloadLinks(self, listLinks, threadNum):
@@ -117,6 +124,14 @@ class WebCrawler:
 					listLinks.append(Page(page.id, link, "", page.NivelPesquisa-1))
 			i += 1
 
+	def makeLogin(url, params):
+		data = urllib.urlencode(params)
+		req = urllib2.Request(url, data, {})
+		response = urllib2.urlopen(req)
+		cookieInfo = response.info().getheader("Set-Cookie")
+		if len(cookieInfo) > 0:
+			auxHeaders['Cookie'] = cookieInfo
+
 	def downloadUrl(self, item, threadNum=0):
 		success = False
 		maxTries = 4
@@ -127,8 +142,11 @@ class WebCrawler:
 		while cnt < maxTries and success == False:
 			try:
 				htmlHandler = urllib2.urlopen(link, None, timeout[cnt])
+				#contentLocation = htmlHandler.info().getheader('Content-Location')
+				#if len(contentLocation) > 0:
+				#	return contentLocation
 				contentType = htmlHandler.info().getheader('Content-Type')
-				print("contentType", contentType)
+				#print("contentType", contentType)
 				ctlf = contentType.lower().find
 				if ctlf("video") >= 0 or ctlf("image") >= 0 or ctlf("css") >= 0 or ctlf("application") >= 0 or ctlf("model") >= 0 or ctlf("audio") >= 0:
 					htmlSource = ""
@@ -151,7 +169,7 @@ class WebCrawler:
 
 		if cnt == maxTries: htmlSource = ""
 
-		return Page(item.id, item.Link, urllib2.unquote(htmlSource).lower(), item.NivelPesquisa)
+		return Page(item.id, item.Link, htmlSource, item.NivelPesquisa)
 
 	def searchFor(self, clienteId, listWords, listLinks):
 		if self.serverStop == True:
@@ -162,13 +180,13 @@ class WebCrawler:
 
 		if len(listWords) > 0:
 			# tratar dos carateres epeciais que possa ter a lista de palavras
-			tt = time.time()
+			#tt = time.time()
 			newListWords = []
 			for item in listWords:
 				if not self.listWords.has_key(item.id):
 					self.listWords[item.id] = Word(item.id, item.designacao.lower().decode('cp1252').replace('(', '\(').replace(')', '\)').replace('+', '\+').replace(' ', '\s+'))
 				newListWords.append(self.listWords[item.id])
-			print("tempo", time.time() - tt)
+			#print("tempo", time.time() - tt)
 			self.begin(newListWords, listLinks, searchId)
 		
 		self.nextSearchId += 1
@@ -230,7 +248,9 @@ class WebCrawler:
 			if totalMem >= self.maxMem:
 				self.log.info("Begin Cache - TotalMemory in sources (MB) ", totalMem/1000000)
 				for k in self.hashPages.iterkeys():
+					self.log.info(" -- in for --", k)
 					self.hashPages[k].setMemoryMode(False)
+				self.log.info(" -- end for --", k)
 				totalMem = sum([v.length for v in self.hashPages.itervalues() if v.memoryMode == True])
 				self.log.info("End Cache - TotalMemory in sources (MB) ", totalMem/1000000)
 			# ----
@@ -240,6 +260,11 @@ class WebCrawler:
 				self.clearHashPagesWithId(self.hashPages[urlInfo.Link].id)
 			
 			page = self.downloadUrl(urlInfo)
+			# Se detectou um redireccionamento
+			#if isinstance(page, str):
+			#	urlInfo.Link = page
+			#	return [urlInfo]
+			# ----
 			self.hashPages[page.Link] = page
 			downloadFlag = True
 			
@@ -253,17 +278,19 @@ class WebCrawler:
 				for subUrl in subUrlList:
 					link = correctUrl(subUrl, page.Link) 
 					if getDomainFromUrl(link).find(domain) >= 0 and link.split('.')[-1] not in self.ignoreList:
-						ret.append(Page(page.id, link, "", page.NivelPesquisa-1))
+					#if link.split('.')[-1] not in self.ignoreList:
+						ret.append(Page(page.id, link.replace("&amp;", "&"), "", page.NivelPesquisa-1))
 
 			# Retira todas as tags e substitui por ++ com excepcao dos bolds e afins
-			source = page.source()[:] # copy string
+			source = urllib2.unquote(page.source()[:]).lower() # copy string
+			
 			for patern in self.regPatern:
 				source = patern[0].sub(patern[1], source)
 
 			if page != None:
-				tt = time.time()
+				#tt = time.time()
 				result = self.search_3(source, listWords)
-				print("search 3", time.time() - tt, result)
+				#print("search 3", time.time() - tt, result)
 
 			sourceLen = len(source.replace("+", ""))
 
@@ -317,6 +344,26 @@ class WebCrawler:
 					})
 
 		return res
+
+#	def search_4(self, source, listWords):
+#		res = []
+#
+#		source = self.regTokenize(source)
+#		for word in listWords:
+#			for i in xrange(len(source)):
+#				if word.arr[0] == source[i]:
+#					found = True
+#					for j in xrange(1, len(word.arr)):
+#						if word.arr[j] != source[i+j]:
+#							found = False
+#							break
+#					if found:
+#						res.append({
+#							"id" : word.id,
+#							"word" : word.designacao,
+#							"pos" : 0
+#						})
+#		return res
 
 	def getSearchInfo(self, searchId):
 		return self.results[searchId]
@@ -492,6 +539,17 @@ def getUrlsFromHtml(htmlSource):
 	return [item[1]+item[2]+item[3] for item in p0.findall(htmlSource)]
 
 def correctUrl(url, parentUrl):
+	_url = urllib2.urlparse.urlsplit(url)
+	_scheme = _url.scheme
+	_netloc = _url.netloc
+	_path = urllib2.quote(_url.path)
+	_query = _url.query
+	_fragment = _url.fragment
+
+	_url = urllib2.urlparse.SplitResult(_scheme, _netloc, _path, _query, _fragment)
+
+	url = urllib2.urlparse.urlunsplit(_url)
+
 	test = url.split("://")
 	if len(test) > 1 and len(test[0]) < 10: return url
 	else: return urllib2.urlparse.urljoin(parentUrl, url)

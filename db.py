@@ -8,6 +8,15 @@ import urllib2
 import re
 import profile
 
+#######################
+class Teste:
+	def __init__(self, id, Link, NivelPesquisa):
+		self.id = id
+		self.Link = Link
+		self.NivelPesquisa = NivelPesquisa
+
+#######################
+
 class Db:
 	def __init__(self, server, database, user, password):
 		self.server = server
@@ -40,11 +49,13 @@ def run(srv, dtb, usr, psw, wc):
 		cursSel = conn.cursor()
 		cursIns = conn.cursor()
 
-		listLinks = cursLinks.execute("SELECT id, Link, NivelPesquisa FROM LinksPublicacoes WHERE estado = 0").fetchall();
-		wc.log.info("DB module NumLinks", len(listLinks))
-
+		wc.log.info("DB module :", "SELECT id, Link, NivelPesquisa FROM LinksPublicacoes WHERE estado = 0 AND ordem IN (%s) ORDER BY ordem" % (",".join(["'" + str(item) + "'" for item in wc.categories])))
+		listLinks = cursLinks.execute("SELECT id, Link, NivelPesquisa FROM LinksPublicacoes WHERE estado = 0 AND ordem IN (%s) ORDER BY ordem" % (",".join(["'" + str(item) + "'" for item in wc.categories]))).fetchall();
+		
 		for rowLink in listLinks:
 			cursPalavrasCliente.execute("""
+			SELECT DISTINCT a.id, a.designacao
+			FROM (
 				SELECT DISTINCT p.id, p.designacao
 				FROM ClientesPalavras cp
 				INNER JOIN Palavras p ON cp.idCliente IN (
@@ -62,15 +73,37 @@ def run(srv, dtb, usr, psw, wc):
 					SELECT idPalavras 
 					FROM PalavrasWebNaoPesquisaveis
 				)
-			""", rowLink.id)
+				UNION
+				SELECT DISTINCT p.id, p.designacao
+				FROM PalavrasSector ps
+				INNER JOIN Palavras p ON ps.idSector IN (
+					SELECT idSector 
+					FROM ClienteSectores
+					WHERE idcliente IN ( 
+						SELECT idCliente 
+						FROM TemasWebCliente
+						WHERE idTema IN (
+							SELECT idTema
+							FROM TemasWebLink
+							WHERE idLink = ?
+						)
+					)
+				) AND ps.idpalavra = p.id AND p.estado = 0
+				WHERE p.id NOT IN (
+					SELECT idPalavras 
+					FROM PalavrasWebNaoPesquisaveis
+				)
+			) a
+			""", rowLink.id, rowLink.id)
 
 			listWords = cursPalavrasCliente.fetchall()
+
 			wc.log.info("DB module NumWords", len(listWords))
 
 			clienteId = 0 # not importante
-			tt = time.time()
+			#tt = time.time()
 			searchId = wc.searchFor(clienteId, listWords, [rowLink])
-			print("wc.searchFor", time.time() - tt)
+			#print("wc.searchFor", time.time() - tt)
 
 			if wc.serverStop == True:
 				break
@@ -87,12 +120,12 @@ def run(srv, dtb, usr, psw, wc):
 				crawlerLinkId = 0
 				ins = True
 
-				if len(auxList) > 0: # Já existe
-					ins = False # Não vamos inserir
-					cursSel.execute("SELECT * FROM CrawlerLinksPalavras WHERE idpalavra IN (" + ",".join(["'" + item['id'] + "'" for item in link['found']]) + ")")
-					auxList = cursSel.fetchall()
-					if len(auxList) < len(link['found']):
-						ins = True # Afinal vamos inserir na mesma
+				if len(auxList) > 0: # Ja existe
+					ins = False # Nao vamos inserir
+					#cursSel.execute("SELECT * FROM CrawlerLinksPalavras WHERE idpalavra IN (" + ",".join(["'" + str(item['id']) + "'" for item in link['found']]) + ") ")
+					#auxList = cursSel.fetchall()
+					#if len(auxList) < len(link['found']):
+					#	ins = True # Afinal vamos inserir na mesma
 					
 				if ins == True:
 					# Inserir os resultados na base de dados
