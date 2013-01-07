@@ -1,7 +1,8 @@
 # startCrawler
 # Autor: David Duarte
 
-DB_HOST = "SERVIDOR\SQLEXPRESS"
+DB_HOST = "192.168.1.102"
+DB_DRIVER = "Actual SQL Server"
 DB_DATABASE = "Clipping"
 DB_USER = "teste"
 DB_PASSWORD = "teste123"
@@ -29,14 +30,14 @@ MAX_SOURCE_IN_MEM = 50 # megas
 
 CATEGORIES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
-from WebCrawler import *
+from webcrawler import *
 from db import *
 
 # Inicializar o modulo que comunica com a BD
-db = Db(DB_HOST, DB_DATABASE, DB_USER, DB_PASSWORD)
+db = Db(DB_DRIVER, DB_HOST, DB_DATABASE, DB_USER, DB_PASSWORD)
 
 # Inicializar o WebCrawler
-crawler = WebCrawler(WC_HOST, WC_PORT, WC_LOGPATH, CATEGORIES, MAX_SOURCE_IN_MEM, MAX_TIME_URL_UPDATE)
+crawler = WebCrawler(DB_DRIVER, WC_HOST, WC_PORT, WC_LOGPATH, CATEGORIES, MAX_SOURCE_IN_MEM, MAX_TIME_URL_UPDATE)
 
 # Comecar as pesquisas que vindas da BD 
 db.start(crawler)

@@ -81,10 +81,11 @@ class Word:
 		#self.arr = designacao.split('\s+')
 
 class WebCrawler:
-	def __init__(self, host_, port_, logPath_, categories_, maxMenMB, maxTimeUrlUpdateMin):
+	def __init__(self, driver_, host_, port_, logPath_, categories_, maxMenMB, maxTimeUrlUpdateMin):
 		self.stop = -1  # recebe o search id que pretende parar
 		self.hashPages = {}
 		self.results = {}
+		self.driver = driver_
 		self.host = host_
 		self.port = port_
 		self.log = Log.Log(logPath_)

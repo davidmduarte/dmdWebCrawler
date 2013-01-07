@@ -18,7 +18,8 @@ class Teste:
 #######################
 
 class Db:
-	def __init__(self, server, database, user, password):
+	def __init__(self, driver, server, database, user, password):
+		self.driver = driver
 		self.server = server
 		self.database = database
 		self.user = user
@@ -27,11 +28,11 @@ class Db:
 	def start(self, wc):
 		wc.log.info("-- Start DB module --")
 		try:
-			Thread(target=run, args=(self.server, self.database, self.user, self.password, wc)).start()
+			Thread(target=run, args=(self.driver, self.server, self.database, self.user, self.password, wc)).start()
 		except Exception, errtxt:
 			print errtxt
 
-def run(srv, dtb, usr, psw, wc):
+def run(drv, srv, dtb, usr, psw, wc):
 	while True:
 		wc.log.info("DB module - Begin search")
 		# server Stop ??
@@ -41,7 +42,7 @@ def run(srv, dtb, usr, psw, wc):
 
 		# get from DB and search
 		wc.log.info("DB module - Conect do SQL Server", srv, dtb)
-		conn = pyodbc.connect('DRIVER={SQL Server};SERVER=%s;DATABASE=%s;UID=%s;PWD=%s' % (srv, dtb, usr, psw))
+		conn = pyodbc.connect('DRIVER={%s};SERVER=%s;DATABASE=%s;UID=%s;PWD=%s' % (drv, srv, dtb, usr, psw))
 		cursLinks = conn.cursor()
 		cursClientes = conn.cursor()
 		cursPalavrasCliente = conn.cursor()
